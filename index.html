@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>openSALEM</title>
+<style>
+  :root{
+    --bg:#050805;
+    --bg2:#081008;
+    --green:#39ff6a;
+    --green-dim:#1c8f3d;
+    --green-faint:#0e4a20;
+    --white:#d8ffe0;
+    --mono:'JetBrains Mono','Fira Code',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:0.01ms !important; animation-iteration-count:1 !important; scroll-behavior:auto !important; transition-duration:0.01ms !important;}
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    background:var(--bg);
+    color:var(--green);
+    font-family:var(--mono);
+    overflow-x:hidden;
+    position:relative;
+  }
+
+  #crt{
+    pointer-events:none;
+    position:fixed; inset:0; z-index:50;
+    background:repeating-linear-gradient(
+      to bottom,
+      rgba(0,0,0,0) 0px,
+      rgba(0,0,0,0) 2px,
+      rgba(0,0,0,0.12) 3px
+    );
+    mix-blend-mode:overlay;
+    opacity:.5;
+  }
+  #vignette{
+    pointer-events:none;
+    position:fixed; inset:0; z-index:49;
+    background:radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,0.65) 100%);
+  }
+
+  canvas#matrix{
+    position:fixed; inset:0; z-index:0;
+    opacity:.16;
+  }
+
+  nav{
+    position:fixed; top:0; left:0; right:0; z-index:40;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 5vw;
+    background:linear-gradient(to bottom, rgba(5,8,5,0.95), rgba(5,8,5,0));
+    backdrop-filter:blur(2px);
+  }
+  .brand{
+    font-weight:700; letter-spacing:2px; font-size:1rem;
+    color:var(--green); text-shadow:0 0 8px rgba(57,255,106,.6);
+    display:flex; align-items:center; gap:8px;
+  }
+  .brand .caret{animation:blink 1s steps(1) infinite;}
+  .navlinks{display:flex; gap:28px; font-size:.8rem; letter-spacing:1px;}
+  .navlinks a{
+    color:var(--green-dim); text-decoration:none; position:relative; padding-bottom:3px;
+    transition:color .25s ease;
+  }
+  .navlinks a::after{
+    content:''; position:absolute; left:0; bottom:0; width:0; height:1px;
+    background:var(--green); box-shadow:0 0 6px var(--green);
+    transition:width .3s ease;
+  }
+  .navlinks a:hover, .navlinks a:focus-visible{color:var(--green);}
+  .navlinks a:hover::after, .navlinks a:focus-visible::after{width:100%;}
+
+  section{
+    position:relative; z-index:1;
+    min-height:100vh;
+    padding:120px 8vw 80px;
+    display:flex; flex-direction:column; justify-content:center;
+    border-bottom:1px solid var(--green-faint);
+  }
+
+  .eyebrow{
+    font-size:.72rem; letter-spacing:4px; color:var(--green-dim);
+    margin-bottom:18px; text-transform:uppercase;
+  }
+  .eyebrow::before{content:'// ';}
+
+  h1{
+    font-size:clamp(2.4rem, 7vw, 5rem);
+    line-height:1.05;
+    color:var(--white);
+    text-shadow:0 0 18px rgba(57,255,106,.35);
+    max-width:16ch;
+  }
+  h1 .accent{color:var(--green);}
+
+  .terminal-line{
+    margin-top:26px; font-size:1rem; color:var(--green-dim);
+    max-width:60ch; border-left:2px solid var(--green-faint); padding-left:14px;
+  }
+  .type::after{
+    content:'▋'; margin-left:2px; animation:blink 1s steps(1) infinite;
+    color:var(--green);
+  }
+
+  .btnrow{display:flex; flex-wrap:wrap; gap:16px; margin-top:44px;}
+  .btn{
+    font-family:var(--mono);
+    display:inline-flex; align-items:center; gap:10px;
+    padding:14px 22px;
+    border:1px solid var(--green-dim);
+    color:var(--green);
+    background:rgba(57,255,106,0.03);
+    text-decoration:none;
+    font-size:.85rem; letter-spacing:1px;
+    position:relative; overflow:hidden;
+    cursor:pointer;
+    transition:color .25s ease, border-color .25s ease, transform .15s ease, box-shadow .25s ease;
+  }
+  .btn::before{
+    content:''; position:absolute; inset:0; left:-100%;
+    background:var(--green); opacity:.12;
+    transition:left .35s ease;
+  }
+  .btn:hover, .btn:focus-visible{
+    border-color:var(--green); transform:translateY(-2px);
+    box-shadow:0 0 22px rgba(57,255,106,.35);
+  }
+  .btn:hover::before, .btn:focus-visible::before{left:0;}
+  .btn:active{transform:translateY(0px) scale(.98);}
+  .btn .arrow{transition:transform .25s ease;}
+  .btn:hover .arrow{transform:translateX(4px);}
+
+  .btn.coffee{border-color:#e0b34c; color:#ffd479;}
+  .btn.coffee:hover{box-shadow:0 0 22px rgba(255,212,121,.35);}
+  .btn.tiktok{border-color:#ff3b5c; color:#ff6b85;}
+  .btn.tiktok:hover{box-shadow:0 0 22px rgba(255,59,92,.35);}
+
+  .reveal{opacity:0; transform:translateY(24px); transition:opacity .7s ease, transform .7s ease;}
+  .reveal.in{opacity:1; transform:translateY(0);}
+
+  .sec-head{display:flex; align-items:baseline; gap:14px; margin-bottom:36px;}
+  .sec-head .tag{color:var(--green-dim); font-size:.85rem;}
+  .sec-head h2{font-size:clamp(1.6rem,4vw,2.6rem); color:var(--white);}
+  .rule{flex:1; height:1px; background:linear-gradient(to right, var(--green-faint), transparent);}
+
+  .store-panel{
+    border:1px solid var(--green-faint);
+    padding:34px;
+    max-width:640px;
+    background:linear-gradient(180deg, rgba(57,255,106,0.03), transparent);
+  }
+  .store-panel p{color:var(--green-dim); line-height:1.7; margin-bottom:24px; max-width:56ch;}
+  .store-panel .stat{
+    display:flex; gap:10px; align-items:center; font-size:.8rem; color:var(--green-dim); margin-bottom:24px;
+  }
+  .dot{width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 1.6s ease-in-out infinite;}
+
+  .profile-grid{display:grid; grid-template-columns:1fr; gap:40px; max-width:760px;}
+  .profile-card{border:1px solid var(--green-faint); padding:30px;}
+  .profile-card .who{font-size:1.3rem; color:var(--white); margin-bottom:10px;}
+  .profile-card p{color:var(--green-dim); line-height:1.8;}
+  .kv{margin-top:20px; display:grid; grid-template-columns:auto 1fr; gap:8px 18px; font-size:.85rem;}
+  .kv span:nth-child(odd){color:var(--green-dim);}
+  .kv span:nth-child(even){color:var(--green);}
+
+  .projects{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:22px; max-width:1100px;}
+  .project{
+    border:1px solid var(--green-faint); padding:26px; position:relative;
+    transition:border-color .3s ease, transform .3s ease, box-shadow .3s ease;
+  }
+  .project:hover{border-color:var(--green); transform:translateY(-4px); box-shadow:0 8px 30px rgba(57,255,106,.12);}
+  .project .idx{font-size:.7rem; color:var(--green-faint); letter-spacing:2px;}
+  .project h3{color:var(--white); margin:10px 0 10px; font-size:1.15rem;}
+  .project p{color:var(--green-dim); font-size:.88rem; line-height:1.6;}
+  .project .status{
+    display:inline-block; margin-top:16px; font-size:.7rem; letter-spacing:1px;
+    padding:4px 10px; border:1px solid var(--green-faint); color:var(--green-dim);
+  }
+
+  footer{
+    padding:50px 8vw; text-align:center; color:var(--green-faint); font-size:.75rem;
+    position:relative; z-index:1; letter-spacing:1px;
+  }
+  footer a{color:var(--green-dim);}
+
+  @keyframes blink{50%{opacity:0;}}
+  @keyframes pulse{0%,100%{opacity:1;} 50%{opacity:.3;}}
+
+  ::selection{background:var(--green); color:#000;}
+
+  a:focus-visible, button:focus-visible{outline:1px dashed var(--green); outline-offset:3px;}
+
+  @media (max-width:640px){
+    .navlinks{display:none;}
+    section{padding:110px 6vw 60px;}
+  }
+</style>
+</head>
+<body>
+
+<canvas id="matrix"></canvas>
+<div id="vignette"></div>
+<div id="crt"></div>
+
+<nav>
+  <div class="brand">open<span style="color:var(--white)">SALEM</span><span class="caret">_</span></div>
+  <div class="navlinks">
+    <a href="#store">store</a>
+    <a href="#profile">profile</a>
+    <a href="#projects">projects</a>
+  </div>
+</nav>
+
+<section id="home">
+  <div class="eyebrow reveal">system online</div>
+  <h1 class="reveal">open<span class="accent">SALEM</span><br>brand &amp; projects</h1>
+  <div class="terminal-line reveal">
+    <span id="typed"></span>
+  </div>
+  <div class="btnrow reveal">
+    <a class="btn" href="#store">enter store <span class="arrow">→</span></a>
+    <a class="btn" href="#profile">who's behind this <span class="arrow">→</span></a>
+    <a class="btn coffee" href="https://buymeacoffee.com/SALEMTEAM" target="_blank" rel="noopener">☕ buy me a coffee</a>
+    <a class="btn tiktok" href="https://www.tiktok.com/@opensalemdev" target="_blank" rel="noopener">♪ @opensalemdev</a>
+  </div>
+</section>
+
+<section id="store">
+  <div class="sec-head reveal">
+    <span class="tag">01</span>
+    <h2>store</h2>
+    <div class="rule"></div>
+  </div>
+  <div class="store-panel reveal">
+    <div class="stat"><span class="dot"></span> listings hosted on eBay</div>
+    <p>Everything openSALEM sells lives on eBay. Hit the link below to browse current listings — new drops get posted there first.</p>
+    <a class="btn" href="https://ebay.io/m/6MSY2l" target="_blank" rel="noopener">open eBay store <span class="arrow">→</span></a>
+  </div>
+</section>
+
+<section id="profile">
+  <div class="sec-head reveal">
+    <span class="tag">02</span>
+    <h2>profile</h2>
+    <div class="rule"></div>
+  </div>
+  <div class="profile-grid">
+    <div class="profile-card reveal">
+      <div class="who">openSALEM</div>
+      <p>The brand behind everything here — separate but related projects, all under one name.</p>
+      <div class="kv">
+        <span>store</span><span><a href="#store" style="color:var(--green)">eBay ↗</a></span>
+        <span>support</span><span><a href="https://buymeacoffee.com/SALEMTEAM" target="_blank" rel="noopener" style="color:var(--green)">buy me a coffee ↗</a></span>
+        <span>tiktok</span><span><a href="https://www.tiktok.com/@opensalemdev" target="_blank" rel="noopener" style="color:var(--green)">@opensalemdev ↗</a></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="projects">
+  <div class="sec-head reveal">
+    <span class="tag">03</span>
+    <h2>projects</h2>
+    <div class="rule"></div>
+  </div>
+  <div class="projects">
+    <div class="project reveal">
+      <div class="idx">PROJECT</div>
+      <h3>Untitled openSALEM Game</h3>
+      <p>The openSALEM game project. Related to the brand, developed as its own thing.</p>
+      <p style="margin-top:14px; font-size:.8rem;">Requires <strong style="color:var(--white)">Source SDK Base 2013 Singleplayer</strong> installed. Extract the downloaded 7zip into your <strong style="color:var(--white)">sourcemods</strong> folder.</p>
+      <div class="kv" style="margin-top:14px; font-size:.72rem;">
+        <span>windows</span><span>C:\Program Files (x86)\Steam\steamapps\sourcemods\</span>
+        <span>macos</span><span>~/Library/Application Support/Steam/steamapps/sourcemods/</span>
+        <span>linux</span><span>~/.steam/steam/steamapps/sourcemods/</span>
+      </div>
+      <a class="btn" style="margin-top:16px; padding:10px 16px; font-size:.75rem;" href="https://tinyurl.com/ooensalemgame" target="_blank" rel="noopener">download <span class="arrow">→</span></a>
+      <span class="status">in progress</span>
+    </div>
+    <div class="project reveal">
+      <div class="idx">PROJECT</div>
+      <h3>openSALEM Linux</h3>
+      <p>The openSALEM Linux project. Related to the brand, developed as its own thing.</p>
+      <a class="btn" style="margin-top:16px; padding:10px 16px; font-size:.75rem;" href="https://tinyurl.com/opensalemlinux" target="_blank" rel="noopener">download <span class="arrow">→</span></a>
+      <span class="status">in progress</span>
+    </div>
+  </div>
+</section>
+
+<footer>
+  openSALEM // <a href="https://buymeacoffee.com/SALEMTEAM" target="_blank" rel="noopener">support</a> · <a href="https://www.tiktok.com/@opensalemdev" target="_blank" rel="noopener">tiktok</a> · <a href="https://ebay.io/m/6MSY2l" target="_blank" rel="noopener">store</a>
+</footer>
+
+<script>
+(function(){
+  var text = "> welcome to the openSALEM network. select a directory above to continue.";
+  var el = document.getElementById('typed');
+  var i = 0;
+  el.classList.add('type');
+  function tick(){
+    if(i <= text.length){
+      el.textContent = text.slice(0,i);
+      i++;
+      setTimeout(tick, 18);
+    }
+  }
+  if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    el.textContent = text;
+  } else {
+    tick();
+  }
+})();
+
+(function(){
+  var items = document.querySelectorAll('.reveal');
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){
+        e.target.classList.add('in');
+        io.unobserve(e.target);
+      }
+    });
+  }, {threshold:.15});
+  items.forEach(function(it){ io.observe(it); });
+})();
+
+(function(){
+  var canvas = document.getElementById('matrix');
+  if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    canvas.style.display = 'none';
+    return;
+  }
+  var ctx = canvas.getContext('2d');
+  var w, h, cols, drops, fontSize = 15;
+  var chars = "アイウエオカキクケコサシスセソ01SALEM";
+
+  function resize(){
+    w = canvas.width = window.innerWidth;
+    h = canvas.height = window.innerHeight;
+    cols = Math.floor(w / fontSize);
+    drops = new Array(cols).fill(1);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function draw(){
+    ctx.fillStyle = 'rgba(5,8,5,0.08)';
+    ctx.fillRect(0,0,w,h);
+    ctx.fillStyle = '#39ff6a';
+    ctx.font = fontSize + 'px monospace';
+    for(var i=0;i<drops.length;i++){
+      var text = chars[Math.floor(Math.random()*chars.length)];
+      ctx.fillText(text, i*fontSize, drops[i]*fontSize);
+      if(drops[i]*fontSize > h && Math.random() > 0.975){
+        drops[i] = 0;
+      }
+      drops[i]++;
+    }
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+</script>
+
+</body>
+</html>
